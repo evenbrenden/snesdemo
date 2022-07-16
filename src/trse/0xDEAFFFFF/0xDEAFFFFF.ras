@@ -1,0 +1,52 @@
+program Deafffff;
+
+@use "screen"
+@use "music"
+
+@export "resources/gfx/0x617274.flf" "resources/gfx/0x617274.bin" 1
+
+var
+	song : incbin("resources/music/0x6265617473.bin") bank(3);
+	sounds : incbin("resources/music/0x534F554E4453.bin") bank(6);
+	sprites : incbin("resources/gfx/0x617274.bin");
+	palette : incbin("resources/gfx/0x617274.pal");
+
+	const charset1_addr : integer = $3000;
+	count : integer = 0;
+
+	title : string = "0xDEAFFFFF";
+	glitch : string = "0xDEADDDDD";
+
+begin
+	Screen::Init();
+	Screen::SetPalette(#palette, 0, $100);
+	Screen::SetGraphicsMode(1, #charset1_addr);
+	Screen::CopyToVRAM(#sprites, #charset1_addr, 128*128/2);
+	Screen::SetBGScreenLocation(0, hi(#SCREEN_BG1) | Screen::BG_32X32);
+	Screen::SetBGScreenLocation(1, hi(#SCREEN_BG2) | Screen::BG_32X32);
+	Screen::MoveToXY(0, 0, #Screen::BG1);
+	Screen::FillToVRAM(0, 0, 32*32);
+	Screen::MoveToXY(0, 0, #Screen::BG2);
+	Screen::FillToVRAM(1, 0, 32*32);
+	Screen::EnableGFX(Screen::ENABLE_BG1 | Screen::ENABLE_BG2);
+	Screen::EnableDisplay();
+	Music::Init(#song, #sounds, 3, 6);
+
+	while (true) offpage do
+	begin
+		Screen::WaitForVerticalBlank();
+		if (count = 0 or count = 204) then
+		begin
+			Screen::MoveToXY(21, 2, #Screen::BG1);
+			Screen::CopyToScreen(#title, length(title), Screen::TILE_PRIORITY);
+		end
+		else if (count = 200) then
+		begin
+			Screen::MoveToXY(21, 2, #Screen::BG1);
+			Screen::CopyToScreen(#glitch, length(glitch), Screen::TILE_PRIORITY);
+		end;
+		count += 1;
+		if count >= 2000 then
+			count := 0;
+	end;
+end.

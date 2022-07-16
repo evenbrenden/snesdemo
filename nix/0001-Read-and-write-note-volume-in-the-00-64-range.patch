@@ -1,0 +1,67 @@
+From 4a9548c096fd757268ae1c676380213c07393246 Mon Sep 17 00:00:00 2001
+From: Even Brenden <evenbrenden@gmail.com>
+Date: Sun, 6 Feb 2022 15:43:39 +0100
+Subject: [PATCH 1/2] Read and write note volume in the 00-64 range
+
+The XM importer in snesgss misinterprets the volume column byte by
+assuming that it operates in the 00-64 range, when in fact it operates
+in the 16-80 range. Since I don't have a Borland C++ Builder 2006 lying
+around, I'm just hacking it in ft2-clone instead of fixing it in
+snesgss. This means that XM files saved with an ft2-clone build with
+this patch applied will get incorrect volumes when loaded with an
+ft2-clone release build and vice versa.
+
+See https://github.com/nathancassano/snesgss/issues/10.
+---
+ src/ft2_module_saver.c       | 3 ++-
+ src/modloaders/ft2_load_xm.c | 5 +++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/ft2_module_saver.c b/src/ft2_module_saver.c
+index eccb7ef..d61abd5 100644
+--- a/src/ft2_module_saver.c
++++ b/src/ft2_module_saver.c
+@@ -698,10 +698,11 @@ static uint16_t packPatt(uint8_t *writePtr, uint8_t *pattPtr, uint16_t numRows)
+ 
+ 			uint8_t *firstBytePtr = writePtr++;
+ 
++			const uint8_t volume_offset = 0x10;
+ 			uint8_t packBits = 0;
+ 			if (bytes[0] > 0) { packBits |= 1; *writePtr++ = bytes[0]; } // note
+ 			if (bytes[1] > 0) { packBits |= 2; *writePtr++ = bytes[1]; } // instrument
+-			if (bytes[2] > 0) { packBits |= 4; *writePtr++ = bytes[2]; } // volume column
++			if (bytes[2] > 0) { packBits |= 4; *writePtr++ = bytes[2] - volume_offset; } // volume column
+ 			if (bytes[3] > 0) { packBits |= 8; *writePtr++ = bytes[3]; } // effect
+ 
+ 			if (packBits == 15) // first four bits set?
+diff --git a/src/modloaders/ft2_load_xm.c b/src/modloaders/ft2_load_xm.c
+index 2ef6bea..5bd7285 100644
+--- a/src/modloaders/ft2_load_xm.c
++++ b/src/modloaders/ft2_load_xm.c
+@@ -523,12 +523,13 @@ static void unpackPatt(uint8_t *dst, uint8_t *src, uint16_t len, int32_t antChn)
+ 			if (srcIdx >= srcEnd)
+ 				return; // error!
+ 
++			const uint8_t volume_offset = 0x10;
+ 			const uint8_t note = *src++;
+ 			if (note & 0x80)
+ 			{
+ 				*dst++ = (note & 0x01) ? *src++ : 0;
+ 				*dst++ = (note & 0x02) ? *src++ : 0;
+-				*dst++ = (note & 0x04) ? *src++ : 0;
++				*dst++ = (note & 0x04) ? *src++ + volume_offset : 0;
+ 				*dst++ = (note & 0x08) ? *src++ : 0;
+ 				*dst++ = (note & 0x10) ? *src++ : 0;
+ 			}
+@@ -536,7 +537,7 @@ static void unpackPatt(uint8_t *dst, uint8_t *src, uint16_t len, int32_t antChn)
+ 			{
+ 				*dst++ = note;
+ 				*dst++ = *src++;
+-				*dst++ = *src++;
++				*dst++ = *src++ + volume_offset;
+ 				*dst++ = *src++;
+ 				*dst++ = *src++;
+ 			}
+-- 
+2.33.1
+
